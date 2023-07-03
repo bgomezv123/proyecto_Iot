@@ -190,7 +190,7 @@ void loop() {
       Serial.println(mensaje);
    }
  
-  //Recibimos el mensaje enviado por el servicio cloud (AWS, con el topico llamado "inTopic"
+  //Recibimos el mensaje enviado por el servicio cloud (AWS, con el topico llamado "on_off"
   char recivedMsg = client.subscribe("on_off",1);
   Serial.println(recivedMsg);
 

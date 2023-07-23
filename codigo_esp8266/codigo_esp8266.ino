@@ -12,7 +12,7 @@ Equipo:
 #include <PubSubClient.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
-
+#include <ArduinoJson.h>
 
 // Valores para la conexion WiFi
 const char* ssid = "GOMEZ 2,4G";
@@ -20,10 +20,13 @@ const char* password = "holathiago123456789";
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org");
 //AWS este valor se optiene del portal de AWS
-const int pinD7 = 13;
+
 const int pinLDR = A0;
 bool onOff = true;
-
+int MODE_LED = 1;
+int R=50;
+int G=50;
+int B=50;
  //MQTT broker ip (EndPoint obtenido del portal AWS)
 const char * AWS_endpoint = "a34bt8gk372w9w-ats.iot.us-east-2.amazonaws.com";
 
@@ -35,15 +38,38 @@ void callback(char * topic, byte * payload, unsigned int length) {
   for (int i = 0; i < length; i++) {
     Serial.print((char) payload[i]);
   }
-  Serial.println();
+  Serial.println(topic);
+
+  payload[length] = '\0';
+  String jsonString = String((char*)payload);
+  DynamicJsonDocument doc(512);
+  deserializeJson(doc, jsonString);
+  int value1 = doc["on_off"];
+  int value2 = doc["mode_led"];
+  int r = doc["r"];
+  int g = doc["g"];
+  int b = doc["b"];
  
  // Si el valor del payload es 1 se enciende el led, de lo contrario se apaga
-  if ((char)payload[0] == '1') {
-    onOff = true;
-  } else {
-    onOff = false;  
-  }
+  if(strcmp(topic,"abc")==0){
+    if (value1 == 1) {
+      onOff = true;
+    } else if(value1 == 0) {
+      onOff = false;  
+    } 
 
+    if(value2 == 1){
+      MODE_LED = 1;
+    }else if(value2 == 2){
+      MODE_LED = 2;
+      R=r;
+      G=g;
+      B=b;
+    }
+
+  
+  }
+ 
  
 }
 
@@ -103,7 +129,7 @@ void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
   // inicializamos el led del esp8266
-  pinMode(LED_BUILTIN, OUTPUT);
+  
   setup_wifi();
   delay(1000);
   if (!SPIFFS.begin()) {
@@ -150,8 +176,14 @@ void setup() {
 }
 
 unsigned long tiempoPrevio = 0; // Variable para almacenar el tiempo previo
-unsigned long intervalo = 10000; 
+unsigned long intervalo = 1000; 
 
+int redpin = 13; // select the pin for the red LED
+int greenpin = 12 ;// select the pin for the green LED
+int bluepin = 14;
+
+
+const int pinD7 = 13;
 void loop() {
   if (!client.connected()) {
     reconnect();
@@ -160,21 +192,43 @@ void loop() {
   int valorLDR = analogRead(pinLDR);
   client.loop();
   //De acuerdo al valor analogico del sensor LDR establecemos el nivel de luminosidad del LED
-  if(onOff){
+
+  /***
+     if(onOff){
       if(valorLDR < 20){
-        analogWrite(pinD7, 0);
+        analogWrite(pinTX, 0);
       }else if(valorLDR >= 20 && valorLDR < 50){
-        analogWrite(pinD7, valorLDR/3);
+        analogWrite(pinTX, 50);
       }
       else if(valorLDR >=50 && valorLDR < 60){
-        analogWrite(pinD7, valorLDR*3);
+        analogWrite(pinTX, 200);
       } else {
-        analogWrite(pinD7, valorLDR*5);
+        analogWrite(pinTX,255);
       }
   }
   else{
-    analogWrite(pinD7, 0);
+    analogWrite(pinTX, 0);
   }
+  ***/
+
+  if(MODE_LED == 1){
+     if(onOff){
+      analogWrite(redpin,valorLDR);
+      analogWrite(greenpin,valorLDR);
+      analogWrite(bluepin,valorLDR);
+     }else{
+      analogWrite(redpin,0);
+      analogWrite(greenpin,0);
+      analogWrite(bluepin,0);
+     }
+  }else if(MODE_LED ==2){
+      analogWrite(redpin,R);
+      analogWrite(greenpin,G);
+      analogWrite(bluepin,B);
+  }
+
+
+  
 
   //Contenamoes el siguiente string con el valor del sensor para imprimirlo en el Monitor Serie
   char mensaje[50] = "Valor del sensor : ";
@@ -187,11 +241,13 @@ void loop() {
       //Publicamos el mensaje del sensor en el servicio Cloud(AWS), con el topico llamado "outTopic"
       client.publish("outTopic", mensaje);
       //Imprimimos el mensaje en el monitor serie
-      Serial.println(mensaje);
+      //Serial.println(mensaje);
    }
  
   //Recibimos el mensaje enviado por el servicio cloud (AWS, con el topico llamado "on_off"
-  char recivedMsg = client.subscribe("on_off",1);
+  char recivedMsg = client.subscribe("abc",1);
+  //char mode_led = client.subscribe("mode_led",1);
+  //char rgb_led = client.subscribe("rgb",1);
   Serial.println(recivedMsg);
 
 }

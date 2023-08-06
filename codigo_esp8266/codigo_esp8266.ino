@@ -13,6 +13,10 @@ Equipo:
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <ArduinoJson.h>
+#include <TimeLib.h>
+
+
+
 
 // Valores para la conexion WiFi
 const char* ssid = "GOMEZ 2,4G";
@@ -31,6 +35,7 @@ int B=50;
 const char * AWS_endpoint = "a34bt8gk372w9w-ats.iot.us-east-2.amazonaws.com";
 
 //CallBack, se imprime en el Monitor Serie el mensaje recivido por el servicio Cloud
+
 void callback(char * topic, byte * payload, unsigned int length) {
   Serial.print("Message arrived [");
   Serial.print(topic);
@@ -184,6 +189,7 @@ int bluepin = 14;
 
 
 const int pinD7 = 13;
+const String topicPublish = "outTopic";
 void loop() {
   if (!client.connected()) {
     reconnect();
@@ -193,6 +199,18 @@ void loop() {
   client.loop();
   //De acuerdo al valor analogico del sensor LDR establecemos el nivel de luminosidad del LED
 
+
+  time_t epochTime = timeClient.getEpochTime();
+  Serial.print("Epoch Time: ");
+  Serial.println(epochTime);
+  struct tm *ptm = gmtime ((time_t *)&epochTime); 
+  int monthDay = ptm->tm_mday;
+  int currentMonth = ptm->tm_mon+1;
+  int currentYear = ptm->tm_year+1900;
+  
+  
+  String currentDate = String(monthDay) + "-" + String(currentMonth) + "-" + String(currentYear);
+  String timeNow =  String(timeClient.getHours()-5)+":"+String(timeClient.getMinutes())+":"+String(timeClient.getSeconds());
   /***
      if(onOff){
       if(valorLDR < 20){
@@ -228,20 +246,33 @@ void loop() {
   }
 
 
+
+
+
+
+  StaticJsonDocument<128> jsonDoc;
+  // Obtenemos la fecha y hora actual
+  jsonDoc["Timestamp"] = currentDate+", "+timeNow;
+  jsonDoc["Value"] = valorLDR;
+  jsonDoc["Unit"] = "lux";
+  jsonDoc["Notes"] = topicPublish;
   
 
+
+  String jsonString;
+  serializeJson(jsonDoc, jsonString);
   //Contenamoes el siguiente string con el valor del sensor para imprimirlo en el Monitor Serie
-  char mensaje[50] = "Valor del sensor : ";
-  char strValorLDR[4];
-  sprintf(strValorLDR, "%d", valorLDR);
-  strcat(mensaje, strValorLDR);
+  //char mensaje[50] = "Valor del sensor : ";
+  //char strValorLDR[4];
+  //sprintf(strValorLDR, "%d", valorLDR);
+  //strcat(mensaje, strValorLDR);
   
    if (millis() - tiempoPrevio >= intervalo) {
       tiempoPrevio = millis();
       //Publicamos el mensaje del sensor en el servicio Cloud(AWS), con el topico llamado "outTopic"
-      client.publish("outTopic", mensaje);
+      client.publish(topicPublish.c_str(), jsonString.c_str());
       //Imprimimos el mensaje en el monitor serie
-      //Serial.println(mensaje);
+      Serial.println(jsonString.c_str());
    }
  
   //Recibimos el mensaje enviado por el servicio cloud (AWS, con el topico llamado "on_off"

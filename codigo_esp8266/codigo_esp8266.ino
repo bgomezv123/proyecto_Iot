@@ -1,5 +1,5 @@
 /*
-Proyecto IoT
+  Proyecto IoT
 Equipo:
 --Gomez Velaco Brian Jospeh
 --Jacobo Castillo Andrew Pold 
@@ -22,7 +22,9 @@ Equipo:
 const char* ssid = "GOMEZ 2,4G";
 const char* password = "holathiago123456789";
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org");
+
+const long utcOffsetInSeconds = -18000; 
+NTPClient timeClient(ntpUDP, "pool.ntp.org",utcOffsetInSeconds);
 //AWS este valor se optiene del portal de AWS
 
 const int pinLDR = A0;
@@ -56,7 +58,7 @@ void callback(char * topic, byte * payload, unsigned int length) {
   int b = doc["b"];
  
  // Si el valor del payload es 1 se enciende el led, de lo contrario se apaga
-  if(strcmp(topic,"abc")==0){
+  
     if (value1 == 1) {
       onOff = true;
     } else if(value1 == 0) {
@@ -73,7 +75,7 @@ void callback(char * topic, byte * payload, unsigned int length) {
     }
 
   
-  }
+  
  
  
 }
@@ -181,7 +183,7 @@ void setup() {
 }
 
 unsigned long tiempoPrevio = 0; // Variable para almacenar el tiempo previo
-unsigned long intervalo = 1000; 
+unsigned long intervalo = 10000; 
 
 int redpin = 13; // select the pin for the red LED
 int greenpin = 12 ;// select the pin for the green LED
@@ -189,7 +191,7 @@ int bluepin = 14;
 
 
 const int pinD7 = 13;
-const String topicPublish = "outTopic";
+const String topicPublish = "sensor/data";
 void loop() {
   if (!client.connected()) {
     reconnect();
@@ -201,8 +203,6 @@ void loop() {
 
 
   time_t epochTime = timeClient.getEpochTime();
-  Serial.print("Epoch Time: ");
-  Serial.println(epochTime);
   struct tm *ptm = gmtime ((time_t *)&epochTime); 
   int monthDay = ptm->tm_mday;
   int currentMonth = ptm->tm_mon+1;
@@ -210,7 +210,7 @@ void loop() {
   
   
   String currentDate = String(monthDay) + "-" + String(currentMonth) + "-" + String(currentYear);
-  String timeNow =  String(timeClient.getHours()-5)+":"+String(timeClient.getMinutes())+":"+String(timeClient.getSeconds());
+  String timeNow =  String(timeClient.getHours())+":"+String(timeClient.getMinutes())+":"+String(timeClient.getSeconds());
   /***
      if(onOff){
       if(valorLDR < 20){
@@ -240,22 +240,26 @@ void loop() {
       analogWrite(bluepin,0);
      }
   }else if(MODE_LED ==2){
+     if(onOff){
       analogWrite(redpin,R);
       analogWrite(greenpin,G);
       analogWrite(bluepin,B);
+     }else{
+      analogWrite(redpin,0);
+      analogWrite(greenpin,0);
+      analogWrite(bluepin,0);
+     }
   }
-
-
-
 
 
 
   StaticJsonDocument<128> jsonDoc;
   // Obtenemos la fecha y hora actual
-  jsonDoc["Timestamp"] = currentDate+", "+timeNow;
-  jsonDoc["Value"] = valorLDR;
-  jsonDoc["Unit"] = "lux";
-  jsonDoc["Notes"] = topicPublish;
+  jsonDoc["date"] = currentDate;
+  jsonDoc["time"] = timeNow;
+  jsonDoc["value"] = valorLDR;
+  jsonDoc["unit"] = "lux";
+  jsonDoc["notes"] = topicPublish;
   
 
 
@@ -276,7 +280,7 @@ void loop() {
    }
  
   //Recibimos el mensaje enviado por el servicio cloud (AWS, con el topico llamado "on_off"
-  char recivedMsg = client.subscribe("abc",1);
+  char recivedMsg = client.subscribe("state/led",1);
   //char mode_led = client.subscribe("mode_led",1);
   //char rgb_led = client.subscribe("rgb",1);
   Serial.println(recivedMsg);
